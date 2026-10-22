@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SafeTrack - GPS Tracking Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+
+<style>
+:root{
+ --bg:#0a1120;--side:#0d1626;--pan:#111c30;--pan2:#15233b;
+ --ln:#1f2f4a;--tx:#e8eef8;--mut:#8fa1bd;--blue:#2f6df6;
+ --grn:#00ff9d;--red:#ff354f;--amb:#ffad32
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+.app{display:grid;grid-template-columns:210px 1fr;min-height:100vh}
+nav{background:var(--side);border-right:1px solid var(--ln);padding:16px 10px;position:sticky;top:0;height:100vh}
+.logo{display:flex;gap:10px;align-items:center;padding:0 8px 18px}
+.logo i{font-style:normal;font-size:26px}
+.logo b{font-size:19px;display:block;line-height:1.1}
+.logo span{font-size:11px;color:var(--mut)}
+nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:var(--mut);text-decoration:none;margin-bottom:2px}
+nav a.act,nav a:hover{background:#15305e;color:#fff}
+nav a em{margin-left:auto;background:var(--red);color:#fff;border-radius:10px;font-size:11px;padding:0 7px;font-style:normal;display:none}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--ln)}
+.top h1{font-size:18px;margin:0 auto 0 0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--red);display:inline-block;margin-right:6px}
+select,input,button{font:inherit;color:var(--tx);background:var(--pan2);border:1px solid var(--ln);border-radius:7px;padding:7px 10px}
+button{cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{border-color:#668bce}
+button.pri{background:var(--blue);border-color:var(--blue)}
+button.on{background:#164e8b;border-color:#38bdf8;box-shadow:0 0 0 1px #38bdf8}
+button:disabled{opacity:.4;cursor:not-allowed}
+input[type=number]{width:74px}
+.wrap{padding:14px 18px;display:grid;gap:12px}
+.g6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.mid{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(280px,1fr);gap:12px}
+.bot{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:12px}
+.card{background:var(--pan);border:1px solid var(--ln);border-radius:12px;padding:12px 14px;min-width:0}
+.card h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.card h2 small{margin-left:auto;font-weight:400;color:var(--mut)}
+.stat{display:flex;gap:12px;align-items:center}
+.ico{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:20px;background:#173056;flex:none}
+.stat small{color:var(--mut);display:block;font-size:12px}
+.stat b{font-size:17px;line-height:1.2}
+.stat span{font-size:11px;color:var(--mut)}
+.ok{color:var(--grn)}.bad{color:var(--red)}.warn{color:var(--amb)}
+#mapbox{position:relative}
+#map{height:440px;border-radius:10px;z-index:1;background:#111c30}
+.tog{position:absolute;z-index:500;top:10px;left:10px;display:flex}
+.tog button{border-radius:0}
+.tog button:first-child{border-radius:7px 0 0 7px}
+.tog button:last-child{border-radius:0 7px 7px 0}
+.leg{position:absolute;z-index:500;bottom:10px;left:10px;background:#0a1120e8;padding:5px 10px;border-radius:8px;font-size:12px;pointer-events:none}
+.kv{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--ln)}
+.kv:last-child{border:0}
+.kv span{color:var(--mut)}
+.pill{padding:2px 10px;border-radius:12px;font-size:12px;background:#1d3a2c;color:var(--grn)}
+.pill.r{background:#4a1d22;color:#ff8b8b}
+.alert{display:flex;gap:10px;padding:9px 10px;border-radius:9px;margin-bottom:6px;background:#1a2640;font-size:13px}
+.alert.sos{background:#4a1a22;border:1px solid #7a2630}
+.alert.warn{background:#3b3014}
+.alert small{display:block;color:var(--mut)}
+#alerts{max-height:230px;overflow:auto}
+.qa{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.qa button{padding:12px 4px;font-weight:600;line-height:1.2}
+.qa small{display:block;font-weight:400;opacity:.8;font-size:11px}
+.qa .s{background:#c8323d;border-color:#c8323d}
+.qa .b{background:#1f55c9;border-color:#1f55c9}
+.qa .v{background:#3a3d9c;border-color:#3a3d9c}
+.f h3{margin:0;font-size:13px;color:var(--mut)}
+.f b{display:block;font-size:17px;margin:6px 0 2px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--mut);text-align:left;font-weight:400;padding:5px 4px}
+td{padding:6px 4px;border-top:1px solid var(--ln);overflow-wrap:anywhere}
+canvas{width:100%;height:170px;display:block}
+svg{width:100%;height:170px;display:block;background:#0c1730;border-radius:8px}
+.zones{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.z{background:var(--pan2);border:1px solid var(--ln);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.z div{flex:1;min-width:0}
+.z b{display:block;overflow-wrap:anywhere}
+.z small{color:var(--mut)}
+.z input{width:18px;height:18px;flex:none}
+.set{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.set label{color:var(--mut);font-size:13px}
+#hint{flex-basis:100%;padding:7px 0}
+#toast{position:fixed;right:16px;bottom:16px;background:#1d4ed8;border:1px solid #60a5fa;padding:10px 14px;border-radius:8px;display:none;z-index:2000;max-width:calc(100% - 32px)}
+.leaflet-tooltip{white-space:normal;max-width:230px;background:#1f55c9;color:#fff;border:0;box-shadow:0 2px 8px #0008}
+.leaflet-tooltip-top:before{border-top-color:#1f55c9}
+.leaflet-tooltip.zlab{background:#07101de8;box-shadow:0 0 8px #000;color:#fff;font-weight:800;border:1px solid #ffffff55;text-shadow:0 1px 3px #000}
+.leaflet-tooltip.zlab:before{display:none}
+.darkmap{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+/* High-contrast boundary drawing markers */
+.draw-point{filter:drop-shadow(0 0 4px #38bdf8)}
+@media(max-width:1100px){
+ .g6{grid-template-columns:repeat(3,1fr)}
+ .mid,.bot{grid-template-columns:1fr}
+ .zones{grid-template-columns:1fr 1fr}
+ .g4{grid-template-columns:1fr 1fr}
+}
+@media(max-width:800px){
+ .app{grid-template-columns:1fr}
+ nav{display:none}
+ .g6{grid-template-columns:1fr 1fr}
+ .wrap{padding:10px}
+ .top{padding:10px}
+ #map{height:380px}
+}
+@media(max-width:480px){
+ .g6,.g4,.zones{grid-template-columns:1fr}
+ .top h1{width:100%}
+ #map{height:340px}
+ .qa{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+<nav>
+ <div class="logo"><i>&#128205;</i><div><b>SafeTrack</b><span>Smart Tracking &amp; Safety System</span></div></div>
+ <a href="#top" class="act">&#127968; Dashboard</a>
+ <a href="#mapbox">&#128225; Live Tracking</a>
+ <a href="#hist">&#128339; Location History</a>
+ <a href="#zn">&#128737; Geofences</a>
+ <a href="#alertcard">&#128276; SOS &amp; Alerts <em id="nb">0</em></a>
+ <a href="#zn">&#9881; Device Settings</a>
+ <a href="#" id="rep">&#128202; Reports (CSV)</a>
+</nav>
+
+<div>
+<div class="top" id="top">
+ <h1>Dashboard</h1>
+ <select id="src">
+  <option value="demo">Demo (simulated)</option>
+  <option value="serial">USB serial (real board)</option>
+  <option value="server">Server URL</option>
+ </select>
+ <input id="url" placeholder="Backend URL (optional for local USB)" style="display:none;width:260px">
+ <button id="go" class="pri">Start</button>
+ <span><i class="dot" id="cdot"></i><span id="ctext">Not connected</span></span>
+ <span style="color:var(--mut)">Last updated: <span id="lu">--</span></span>
+</div>
+
+<div class="wrap">
+ <div class="g6">
+  <div class="card stat"><div class="ico">&#128205;</div><div><small>Current Location</small><b id="cLoc">Waiting for fix</b><span id="cLL">--</span></div></div>
+  <div class="card stat"><div class="ico">&#9889;</div><div><small>Speed</small><b id="cSpd">-- km/h</b></div></div>
+  <div class="card stat"><div class="ico">&#128267;</div><div><small>Battery</small><b id="cBat">--</b></div></div>
+  <div class="card stat"><div class="ico">&#128246;</div><div><small>Signal Strength</small><b id="cSig">--</b></div></div>
+  <div class="card stat"><div class="ico">&#128752;</div><div><small>GPS Status</small><b id="cGps">--</b><span id="cSat"></span></div></div>
+  <div class="card stat"><div class="ico">&#128680;</div><div><small>SOS Status</small><b id="cSos">Inactive</b></div></div>
+ </div>
+
+ <div class="mid">
+  <div class="card" id="mapbox">
+   <div class="tog">
+    <button id="tM" class="on">Dark</button><button id="tO">Streets</button><button id="tS">Satellite</button>
+   </div>
+   <div id="map"></div>
+   <div class="leg">&#128309; Live route &nbsp; <span style="color:#00ff9d">━━</span> Safe zone &nbsp; <span style="color:#ff354f">━━</span> Restricted zone</div>
+  </div>
+
+  <div style="display:grid;gap:12px;align-content:start">
+   <div class="card">
+    <h2>Device Status <small><span class="pill r" id="onl">Offline</span></small></h2>
+    <div class="kv"><span>Location</span><b id="dLoc">--</b></div>
+    <div class="kv"><span>Last Update</span><b id="dLu">--</b></div>
+    <div class="kv"><span>Network</span><b id="dNet">--</b></div>
+    <div class="kv"><span>GPS</span><b id="dGps">--</b></div>
+    <div class="kv"><span>Battery</span><b id="dBat">--</b></div>
+   </div>
+
+   <div class="card" id="alertcard">
+    <h2>Active Alerts <small><a href="#" id="va" style="color:#6ea0ff;text-decoration:none">View all</a></small></h2>
+    <div id="alerts"></div><button id="ack" style="width:100%">Acknowledge all</button>
+   </div>
+
+   <div class="card">
+    <h2>Quick Actions</h2>
+    <div class="qa">
+     <button class="s" id="qS">SOS<small>Trigger SOS</small></button>
+     <button class="b" id="qZ">Set Geofence<small>Add zone</small></button>
+     <button class="v" id="qH">View History<small>Location logs</small></button>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="g4">
+  <div class="card f"><h3>&#128737; Geofences</h3><b id="fG">0 zones active</b><span id="fG2" class="ok">No breach</span></div>
+  <div class="card f"><h3>&#128740; Route Deviation</h3><b id="fR">No route set</b><span id="fR2" class="ok">Draw a route on the map</span></div>
+  <div class="card f"><h3>&#9889; Speed Monitoring</h3><b id="fS">-- km/h</b><span id="fS2" class="ok">Within limit</span></div>
+  <div class="card f"><h3>&#128260; Motion / Impact</h3><b id="fM">-- g</b><span id="fM2" class="ok">Normal</span></div>
+  <div class="card f"><h3>&#128752; GPS Loss Alert</h3><b id="fL">Not active</b><span id="fL2" class="ok">GPS signal stable</span></div>
+ </div>
+
+ <div class="bot" id="hist">
+  <div class="card">
+   <h2>Location History</h2>
+   <table><thead><tr><th>Location</th><th>Time</th><th>Speed</th><th>Status</th></tr></thead>
+   <tbody id="hb"><tr><td colspan="4" style="color:var(--mut)">No points yet</td></tr></tbody></table>
+  </div>
+  <div class="card"><h2>Recent Route</h2><svg id="rr" viewBox="0 0 300 170"></svg></div>
+  <div class="card"><h2>Speed Graph</h2><canvas id="chart" width="420" height="170"></canvas></div>
+ </div>
+
+ <div class="card" id="zn">
+  <h2>Geofence Zones &amp; Settings</h2>
+  <div class="set" style="margin-bottom:10px">
+   <button id="bz">+ Add circular zone</button>
+   <button id="drawBoundary">Draw custom boundary</button>
+   <button id="finishBoundary" class="pri" disabled>Finish boundary</button>
+   <button id="cancelBoundary" disabled>Cancel drawing</button>
+   <button id="genZones" class="pri">Generate Random Zones</button>
+   <button id="addRandomZone">+ Random Zone</button>
+   <button id="clearTestZones">Clear Test Zones</button>
+   <label>Radius (m)</label><input id="rad" type="number" value="50" min="1">
+   <label><input id="restr" type="checkbox"> Restricted</label>
+   <button id="br">Draw route</button>
+   <label>Max deviation (m)</label><input id="dev" type="number" value="50" min="1">
+   <label>Speed limit (km/h)</label><input id="lim" type="number" value="40" min="1">
+   <button id="clr">Clear all zones/route</button>
+   <span id="hint" style="color:var(--mut)">Choose a tool, then click the map.</span>
+  </div>
+  <div class="zones" id="zl"><span style="color:var(--mut)">No zones yet.</span></div>
+ </div>
+</div>
+</div>
+</div>
+
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const map=L.map('map',{preferCanvas:false}).setView([29.8649,77.8966],16);
+
+const dark=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+ maxZoom:19,className:'darkmap',attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+ maxZoom:19,attribution:'Esri'
+});
+const labels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{
+ maxZoom:19,zIndex:5
+});
+const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+ maxZoom:19,attribution:'&copy; OpenStreetMap contributors'
+});
+const chain=[dark,osm,sat];
+let ci=0,errN=0,okN=0;
+
+function useLayer(i){
+ chain.forEach(l=>{if(map.hasLayer(l))map.removeLayer(l)});
+ if(map.hasLayer(labels))map.removeLayer(labels);
+ ci=i;errN=0;okN=0;chain[i].addTo(map);
+ if(i===2)labels.addTo(map);
+ $('tM').className=i===0?'on':'';
+ $('tO').className=i===1?'on':'';
+ $('tS').className=i===2?'on':'';
+}
+chain.forEach((l,i)=>{
+ l.on('tileload',()=>{if(ci===i)okN++});
+ l.on('tileerror',()=>{
+  if(ci===i&&!okN&&++errN>=4&&i<2){
+   toast('Map tiles unavailable. Switching map layer.');
+   useLayer(i+1);
+  }
+ });
+});
+$('tM').onclick=()=>useLayer(0);
+$('tO').onclick=()=>useLayer(1);
+$('tS').onclick=()=>useLayer(2);
+
+const trailLine=L.polyline([],{color:'#3b82f6',weight:4}).addTo(map);
+const routeLine=L.polyline([],{color:'#c4a7ff',weight:4,dashArray:'8 6'}).addTo(map);
+const marker=L.circleMarker([0,0],{
+ radius:9,color:'#fff',weight:3,fillColor:'#2f6df6',fillOpacity:1
+}).bindTooltip('Current Location',{permanent:true,direction:'top'});
+
+const st={
+ trail:[],speeds:[],log:[],zones:[],route:[],alerts:[],showAll:false,
+ lastGood:0,last:0,gpsLost:false,over:false,off:false,sos:false,
+ mode:null,dev:false,timer:null,ticks:0,cover:false,simSos:false,
+ badN:0,bat:null,rssi:null,link:'--',logT:0,hasFix:null,sats:null,
+ tool:null,stopped:true,serialPort:null,serialReader:null,serialTask:null,serialPipe:null,
+ speed:0,place:'',gl:null,drawPoints:[],drawLine:null,drawMarkers:[]
+};
+
+const R=6371000,rad=d=>d*Math.PI/180;
+const hav=(a,b,c,d)=>{
+ const x=rad(c-a),y=rad(d-b);
+ const s=Math.sin(x/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(y/2)**2;
+ return 2*R*Math.asin(Math.sqrt(s));
+};
+function segDist(p,a,b){
+ const k=Math.cos(rad(p.lat));
+ const xy=q=>[rad(q.lon-p.lon)*k*R,rad(q.lat-p.lat)*R];
+ const [ax,ay]=xy(a),[bx,by]=xy(b),dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;
+ let t=l?-(ax*dx+ay*dy)/l:0;
+ t=Math.max(0,Math.min(1,t));
+ return Math.hypot(ax+t*dx,ay+t*dy);
+}
+const fmt=t=>new Date(t).toLocaleString('en-GB',{
+ day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'
+});
+function toast(m){
+ const t=$('toast');t.textContent=m;t.style.display='block';
+ clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3500);
+}
+let API='';
+
+/* Centralized, high-visibility style for every geofence. */
+function zoneStyle(z){
+ const isBreach=breach(z);
+ const color=isBreach?'#ff354f':(z.restr?'#ffad32':'#00ff9d');
+ return {
+  color,fillColor:color,weight:4,opacity:z.on?1:.4,
+    fillOpacity:z.on?.24:.04,dashArray:z.restr?'8 5':null,
+  lineCap:'round',lineJoin:'round'
+ };
+}
+function makeZoneLayer(z){
+ const style=zoneStyle(z);
+ let layer;
+ if(z.type==='polygon'&&Array.isArray(z.points)&&z.points.length>=3){
+  layer=L.polygon(z.points,style);
+ }else{
+  layer=L.circle([z.lat,z.lon],{...style,radius:Number(z.r)||50});
+ }
+ layer.addTo(map);
+ layer.bindTooltip(z.name,{
+  permanent:true,direction:'center',className:'zlab'
+ });
+ layer.bindPopup(
+  '<b>'+escapeHtml(z.name)+'</b><br>'+
+  (z.type==='polygon'?'Polygon boundary':'Circular geofence')+
+  '<br>'+(z.restr?'Restricted area':'Safe area')
+ );
+ return layer;
+}
+function escapeHtml(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+ }[c]));
+}
+function saveCfg(){
+ if(!API)return;
+ fetch(API+'/api/config',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({
+   zones:st.zones.map(z=>({
+    name:z.name,lat:z.lat,lon:z.lon,r:z.r,restr:z.restr,on:z.on,
+    type:z.type||'circle',points:z.points||[],test:!!z.test,in:z.in
+   })),
+   route:st.route,lim:+$('lim').value,dev:+$('dev').value
+  })
+ }).catch(()=>toast('Could not save settings to the server.'));
+}
+let cfgLoaded=false;
+async function loadCfg(){
+ if(cfgLoaded)return;cfgLoaded=true;
+ try{
+  const c=await(await fetch(API+'/api/config')).json();
+  (c.zones||[]).forEach(z=>{
+   z.type=z.type||'circle';
+   z.in=typeof z.in==='boolean'?z.in:null;
+   z.votes=0;
+   z.on=z.on!==false;
+   z.c=makeZoneLayer(z);
+   st.zones.push(z);
+  });
+  st.route=c.route||[];
+  routeLine.setLatLngs(st.route.map(p=>[p.lat,p.lon]));
+  if(c.lim)$('lim').value=c.lim;
+  if(c.dev)$('dev').value=c.dev;
+  renderZones();render();
+ }catch(e){cfgLoaded=false;console.warn('Could not load geofence configuration:',e)}
+}
+async function loadAlerts(){
+ try{
+  const a=await(await fetch(API+'/api/alerts')).json();
+  st.alerts=a;
+  st.sos=a.some(x=>x.type==='sos'&&!x.ack);
+  renderAlerts();render();
+ }catch(e){}
+}
+function addAlert(type,text){
+ if(/IMPACT/i.test(text))st.impactAt=Date.now();
+ st.alerts.unshift({type,text,t:Date.now(),ack:type==='info'});
+ if(API)fetch(API+'/api/alerts',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({type,text,t:Date.now()})
+ }).catch(()=>{});
+ if(type==='sos')st.sos=true;
+ renderAlerts();render();
+}
+function renderAlerts(){
+ const box=$('alerts');box.innerHTML='';
+ const list=st.showAll?st.alerts:st.alerts.filter(a=>!a.ack).slice(0,5);
+ if(!list.length)box.innerHTML='<div class="alert"><div>No active alerts<small>All clear</small></div></div>';
+ list.forEach(a=>{
+  const d=document.createElement('div');d.className='alert '+(a.type==='info'?'':a.type);
+  const s=document.createElement('div'),b=document.createElement('b'),t=document.createElement('small'),m=document.createElement('div');
+  b.textContent=a.type==='sos'?'SOS Alert':a.type==='warn'?'Warning':'Info';
+  t.textContent=fmt(a.t);m.textContent=a.text;
+  s.append(b,t,m);d.append(s);box.append(d);
+ });
+ const n=st.alerts.filter(a=>!a.ack).length;
+ $('nb').textContent=n;$('nb').style.display=n?'inline':'none';
+}
+$('ack').onclick=()=>{
+ if(API)fetch(API+'/api/alerts/ack',{method:'POST'}).catch(()=>{});
+ st.alerts.forEach(a=>a.ack=true);st.sos=false;renderAlerts();render();
+};
+$('va').onclick=e=>{
+ e.preventDefault();st.showAll=!st.showAll;
+ $('va').textContent=st.showAll?'Show active':'View all';renderAlerts();
+};
+
+const cellCircle=L.circle([0,0],{
+ radius:500,color:'#ffad32',weight:3,fillColor:'#ffad32',fillOpacity:.12
+});
+function showCell(lat,lon,acc){
+ if(st.lastGood&&Date.now()-st.lastGood<60000)return;
+ const first=!map.hasLayer(cellCircle);
+ cellCircle.setLatLng([lat,lon]).setRadius(acc||500);
+ if(first){cellCircle.addTo(map);map.setView([lat,lon],15)}
+ $('cLoc').textContent='Approximate (cell tower)';
+ $('cLL').textContent=lat.toFixed(4)+', '+lon.toFixed(4)+' (within about '+(acc||'?')+' m)';
+ $('dLoc').textContent='Approximate (cell tower)';
+}
+function ingest(p){
+ const now=Date.now();
+ st.last=now;st.hasFix=!!p.fix;st.sats=p.sats;st.link=p.link||st.link;
+ if(p.bat!=null&&p.bat>=0)st.bat=p.bat;
+ if(p.rssi!=null&&p.rssi>=0&&p.rssi<=31)st.rssi=p.rssi;
+ if(p.g!=null)st.g=p.g;
+ if(p.imp&&!(st.impactAt&&now-st.impactAt<30000))addAlert('warn','IMPACT detected by the tracker');
+ if(p.sos&&!st.sos)addAlert('sos','SOS button pressed on the tracker. Location shared.');
+ if(p.fix&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)){
+  st.lastGood=now;
+  if(map.hasLayer(cellCircle))map.removeLayer(cellCircle);
+  if(st.gpsLost){st.gpsLost=false;if(!st.dev)addAlert('info','GPS restored')}
+  const pt={lat:p.lat,lon:p.lon,spd:p.spd||0,t:now};
+  st.speed=pt.spd;st.trail.push(pt);st.speeds.push(pt.spd);
+  if(st.speeds.length>80)st.speeds.shift();
+  geocode(pt);
+  if(now-st.logT>4000||p.sos){st.logT=now;st.log.push({...pt,sos:st.sos,place:st.place})}
+  trailLine.addLatLng([pt.lat,pt.lon]);
+  if(!map.hasLayer(marker))marker.addTo(map);
+  marker.setLatLng([pt.lat,pt.lon]);
+  if(st.trail.length===1||!map.getBounds().contains([pt.lat,pt.lon]))map.setView([pt.lat,pt.lon],17);
+  if(!st.dev)checkSpeed(pt.spd);
+  checkZones(pt);checkRoute(pt);
+ }
+ render();
+}
+let geoBusy=false;
+async function geocode(pt){
+ const g=st.gl,age=g?Date.now()-g.t:1e9;
+ if(geoBusy||(g&&(age<5000||(hav(g.lat,g.lon,pt.lat,pt.lon)<75&&age<120000))))return;
+ geoBusy=true;st.gl={lat:pt.lat,lon:pt.lon,t:Date.now()};
+ try{
+  const j=await(await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&accept-language=en&lat='+pt.lat+'&lon='+pt.lon)).json();
+  const a=j.address||{},name=j.name||a.amenity||a.building||a.road||'';
+  const area=a.suburb||a.neighbourhood||a.village||a.town||a.city||a.county||'';
+  st.place=[name,area,a.state||''].filter((x,i,r)=>x&&r.indexOf(x)===i).join(', ')||j.display_name||'';
+ }catch(e){}
+ geoBusy=false;render();
+}
+function checkSpeed(v){
+ const lim=+$('lim').value;
+ if(!st.over&&v>lim){st.over=true;addAlert('warn','Overspeed: '+v.toFixed(0)+' km/h (limit '+lim+')')}
+ else if(st.over&&v<lim-3)st.over=false;
+}
+function breach(z){return z.in===null?false:(z.restr?z.in:!z.in)}
+function pointInPolygon(lat,lon,points){
+ let inside=false;
+ for(let i=0,j=points.length-1;i<points.length;j=i++){
+  const yi=Array.isArray(points[i])?points[i][0]:points[i].lat;
+  const xi=Array.isArray(points[i])?points[i][1]:points[i].lon;
+  const yj=Array.isArray(points[j])?points[j][0]:points[j].lat;
+  const xj=Array.isArray(points[j])?points[j][1]:points[j].lon;
+  const crosses=((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/((yj-yi)||1e-12)+xi);
+  if(crosses)inside=!inside;
+ }
+ return inside;
+}
+function checkZones(p){
+ for(const z of st.zones){
+  if(!z.on)continue;
+  const inside=z.type==='polygon'&&z.points&&z.points.length>=3
+   ?pointInPolygon(p.lat,p.lon,z.points)
+   :hav(p.lat,p.lon,z.lat,z.lon)<=z.r;
+  if(z.in===null){z.in=inside;z.c.setStyle(zoneStyle(z));continue}
+  if(inside!==z.in){
+   if(++z.votes>=2){
+    z.in=inside;z.votes=0;z.c.setStyle(zoneStyle(z));
+    addAlert(breach(z)?'warn':'info',(inside?'Entered ':'Left ')+z.name);
+    saveCfg();
+   }
+  }else z.votes=0;
+ }
+}
+function checkRoute(p){
+ if(st.route.length<2)return;
+ let best=1e12;
+ for(let i=0;i<st.route.length-1;i++)best=Math.min(best,segDist(p,st.route[i],st.route[i+1]));
+ const lim=+$('dev').value;st.dist=best;
+ if(!st.off&&best>lim){
+  if(++st.badN>=3){st.off=true;st.badN=0;addAlert('warn','Route deviation: '+Math.round(best)+' m off the planned route')}
+ }else if(st.off&&best<lim-10){st.off=false;addAlert('info','Back on route')}
+ else if(!st.off&&best<=lim)st.badN=0;
+}
+let idT=0;
+async function identify(ll){
+ if(Date.now()-idT<2000)return;
+ idT=Date.now();let name='Unknown place';
+ try{
+  const j=await(await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=en&lat='+ll.lat+'&lon='+ll.lng)).json();
+  name=j.display_name||name;
+ }catch(e){name='Lookup failed (offline?)'}
+ const d=document.createElement('div');d.textContent=name;
+ L.popup().setLatLng(ll).setContent(d).openOn(map);
+}
+function tip(p){
+ const key=(st.place||'')+p.lat.toFixed(4)+p.lon.toFixed(4);
+ if(st.tipKey===key)return;
+ st.tipKey=key;
+ const e=document.createElement('div'),b=document.createElement('b');
+ b.textContent=st.place||'Current Location';
+ e.append(b,document.createElement('br'),document.createTextNode(p.lat.toFixed(4)+'°, '+p.lon.toFixed(4)+'°'));
+ marker.setTooltipContent(e);
+}
+function render(){
+ const now=Date.now(),on=st.last&&now-st.last<15000,p=st.trail[st.trail.length-1];
+ $('onl').textContent=on?'Online':'Offline';$('onl').className='pill'+(on?'':' r');
+ $('cdot').style.background=on?'var(--grn)':'var(--red)';
+ $('ctext').textContent=on?'Connected':(st.last?'No data':'Not connected');
+ $('lu').textContent=st.last?fmt(st.last):'--';$('dLu').textContent=st.last?fmt(st.last):'--';
+ if(p){
+  const ll=p.lat.toFixed(5)+'°, '+p.lon.toFixed(5)+'°';
+  $('cLoc').textContent=st.place||'Live position';$('cLL').textContent=ll;
+  $('dLoc').textContent=st.place||ll;tip(p);
+ }
+ $('cSpd').textContent=st.hasFix?st.speed.toFixed(0)+' km/h':'-- km/h';
+ const bat=st.bat==null?'--':Math.round(st.bat)+'%';
+ $('cBat').textContent=bat;$('dBat').textContent=bat;
+ const sig=st.rssi==null?'--':(st.rssi>=20?'Good':st.rssi>=10?'Fair':'Weak');
+ $('cSig').textContent=sig;$('dNet').textContent=st.link+(st.rssi==null?'':' ('+sig+')');
+ const gt=st.hasFix===null?'--':st.hasFix?'Fixed':'No fix';
+ $('cGps').textContent=gt;$('cGps').className=st.hasFix?'ok':st.hasFix===false?'bad':'';
+ $('dGps').textContent=gt;$('cSat').textContent=st.sats!=null?st.sats+' satellites':'';
+ $('cSos').textContent=st.sos?'ACTIVE':'Inactive';$('cSos').className=st.sos?'bad':'';
+ const act=st.zones.filter(z=>z.on),br=act.filter(breach).length;
+ $('fG').textContent=act.length+' zone'+(act.length===1?'':'s')+' active';
+ $('fG2').textContent=br?br+' breach detected':'No breach';$('fG2').className=br?'bad':'ok';
+ if(st.route.length>1){
+  $('fR').textContent=st.off?'Off route':'On track';$('fR').className=st.off?'bad':'';
+  $('fR2').textContent=st.off?'Deviation '+Math.round(st.dist)+' m':'No deviation';
+  $('fR2').className=st.off?'bad':'ok';
+ }else{$('fR').textContent='No route set';$('fR2').textContent='Draw a route on the map'}
+ $('fS').textContent=st.hasFix?st.speed.toFixed(0)+' km/h':'-- km/h';
+ $('fS2').textContent=st.over?'Over limit':'Within limit';$('fS2').className=st.over?'bad':'ok';
+ $('fL').textContent=st.gpsLost?'ACTIVE':'Not active';$('fL').className=st.gpsLost?'bad':'';
+ $('fL2').textContent=st.gpsLost?'No GPS fix':'GPS signal stable';$('fL2').className=st.gpsLost?'bad':'ok';
+ $('fM').textContent=st.g==null?'-- g':st.g.toFixed(2)+' g';
+ const imp=st.impactAt&&now-st.impactAt<30000;
+ $('fM2').textContent=imp?'IMPACT detected':'Normal';$('fM2').className=imp?'bad':'ok';
+ $('hb').innerHTML=st.log.length?'':'<tr><td colspan="4" style="color:var(--mut)">No points yet</td></tr>';
+ st.log.slice(-6).reverse().forEach(r=>{
+  const tr=document.createElement('tr');
+  [(r.place?r.place+' ':'')+r.lat.toFixed(4)+', '+r.lon.toFixed(4),fmt(r.t),r.spd.toFixed(0)+' km/h'].forEach(x=>{
+   const td=document.createElement('td');td.textContent=x;tr.append(td);
+  });
+  const td=document.createElement('td'),s=document.createElement('span');
+  s.className='pill'+(r.sos?' r':'');s.textContent=r.sos?'SOS':'Live';td.append(s);tr.append(td);$('hb').append(tr);
+ });
+ drawChart();drawRoute();
+}
+function drawChart(){
+ const c=$('chart'),x=c.getContext('2d'),w=c.width,h=c.height,lim=+$('lim').value;
+ x.clearRect(0,0,w,h);
+ const mx=Math.max(lim*1.3,...st.speeds,10),Y=v=>h-18-(v/mx)*(h-30);
+ x.strokeStyle='#1f2f4a';
+ for(let i=0;i<4;i++){x.beginPath();x.moveTo(0,Y(mx*i/3));x.lineTo(w,Y(mx*i/3));x.stroke()}
+ x.strokeStyle='#ffad32';x.setLineDash([5,4]);x.beginPath();x.moveTo(0,Y(lim));x.lineTo(w,Y(lim));x.stroke();x.setLineDash([]);
+ if(st.speeds.length>1){
+  const px=i=>i*(w/79);x.beginPath();
+  st.speeds.forEach((v,i)=>i?x.lineTo(px(i),Y(v)):x.moveTo(px(i),Y(v)));
+  x.strokeStyle='#3b82f6';x.lineWidth=2.5;x.stroke();
+  x.lineTo(px(st.speeds.length-1),h-18);x.lineTo(0,h-18);x.fillStyle='#2f6df633';x.fill();
+ }
+ x.fillStyle='#8fa1bd';x.font='11px sans-serif';x.fillText('limit '+lim+' km/h',4,Y(lim)-4);
+}
+function drawRoute(){
+ const s=$('rr'),t=st.trail;
+ if(t.length<2){s.innerHTML='<text x="150" y="88" fill="#8fa1bd" text-anchor="middle" font-size="12">Route appears once the tracker moves</text>';return}
+ const la=t.map(p=>p.lat),lo=t.map(p=>p.lon),a=Math.min(...la),b=Math.max(...la),c=Math.min(...lo),d=Math.max(...lo);
+ const sc=Math.min(260/((d-c)||1e-6),130/((b-a)||1e-6));
+ const X=p=>20+(p.lon-c)*sc,Y=p=>150-(p.lat-a)*sc;
+ const pts=t.map(p=>X(p).toFixed(1)+','+Y(p).toFixed(1)).join(' ');
+ s.innerHTML='<polyline points="'+pts+'" fill="none" stroke="#3b82f6" stroke-width="3"/><circle cx="'+X(t[0])+'" cy="'+Y(t[0])+'" r="6" fill="#00ff9d"/><circle cx="'+X(t[t.length-1])+'" cy="'+Y(t[t.length-1])+'" r="6" fill="#ff354f"/>';
+}
+
+/* Drawing mode controls */
+function setMode(m){
+ if(st.tool==='polygon'&&m!=='polygon')clearBoundaryPreview();
+ st.tool=m;
+ $('bz').className=m==='zone'?'on':'';
+ $('br').className=m==='route'?'on':'';
+ $('drawBoundary').className=m==='polygon'?'on':'';
+ $('finishBoundary').disabled=m!=='polygon'||st.drawPoints.length<3;
+ $('cancelBoundary').disabled=m!=='polygon';
+ $('hint').textContent=m==='zone'?'Click the map to place a circular zone.':
+  m==='route'?'Click points along your planned route.':
+  m==='polygon'?'CUSTOM BOUNDARY: click each corner in order. Add at least 3 points, then click Finish boundary.':
+  'Choose a tool, then click the map.';
+}
+$('bz').onclick=()=>setMode('zone');
+$('br').onclick=()=>setMode('route');
+$('drawBoundary').onclick=()=>{
+ clearBoundaryPreview();setMode('polygon');
+ toast('Boundary drawing started. Click each corner of your boundary.');
+};
+$('finishBoundary').onclick=finishBoundary;
+$('cancelBoundary').onclick=()=>{
+ clearBoundaryPreview();setMode(null);toast('Boundary drawing cancelled');
+};
+function clearBoundaryPreview(){
+ if(st.drawLine){map.removeLayer(st.drawLine);st.drawLine=null}
+ st.drawMarkers.forEach(m=>map.removeLayer(m));st.drawMarkers=[];st.drawPoints=[];
+ $('finishBoundary').disabled=true;
+}
+
+/* Save a manually drawn polygon as a zone. */
+function finishBoundary(){
+ if(st.drawPoints.length<3){toast('Add at least 3 boundary points first.');return}
+ const points=st.drawPoints.map(p=>[p.lat,p.lng]);
+ const restr=$('restr').checked;
+ const name=(restr?'Restricted Zone ':'Safe Zone ')+(st.zones.length+1);
+ const center=points.reduce((a,p)=>({lat:a.lat+p[0]/points.length,lon:a.lon+p[1]/points.length}),{lat:0,lon:0});
+ const z={name,lat:center.lat,lon:center.lon,r:0,restr,type:'polygon',points,in:null,votes:0,on:true,test:false};
+ z.c=makeZoneLayer(z);
+ z.c.bindPopup('<b>'+escapeHtml(name)+'</b><br>Custom boundary drawn by you.');
+ clearBoundaryPreview();st.zones.push(z);setMode(null);
+ renderZones();render();saveCfg();toast('Your custom boundary has been saved.');
+ }
+
+/* Generate random polygon coordinates within the visible map. */
+function makeRandomPolygon(){
+ const b=map.getBounds(),latSpan=b.getNorth()-b.getSouth(),lonSpan=b.getEast()-b.getWest();
+ const centerLat=b.getSouth()+latSpan*(.15+Math.random()*.7);
+ const centerLon=b.getWest()+lonSpan*(.15+Math.random()*.7);
+ const count=5+Math.floor(Math.random()*4);
+ const baseLat=latSpan*(.025+Math.random()*.025),baseLon=lonSpan*(.025+Math.random()*.025);
+ const points=[];
+ for(let i=0;i<count;i++){
+  const angle=2*Math.PI*i/count+(Math.random()-.5)*.2;
+  const distance=.65+Math.random()*.55;
+  points.push([centerLat+Math.sin(angle)*baseLat*distance,centerLon+Math.cos(angle)*baseLon*distance]);
+ }
+ return {centerLat,centerLon,points};
+}
+function addRandomPolygon(silent=false){
+ const shape=makeRandomPolygon(),restr=Math.random()<.3;
+ const name=(restr?'Restricted Zone ':'Safe Zone ')+(st.zones.length+1);
+ const z={name,lat:shape.centerLat,lon:shape.centerLon,r:0,restr,type:'polygon',
+  points:shape.points,test:true,in:null,votes:0,on:true};
+ z.c=makeZoneLayer(z);st.zones.push(z);
+ if(!silent){renderZones();render();saveCfg();toast('Random polygon boundary added.')}
+}
+function generateRandomZones(){
+ st.zones.filter(z=>z.test).forEach(z=>map.removeLayer(z.c));
+ st.zones=st.zones.filter(z=>!z.test);
+ for(let i=0;i<8;i++)addRandomPolygon(true);
+ renderZones();render();saveCfg();toast('Generated 8 random polygon zones.');
+}
+function clearTestZones(){
+ st.zones.filter(z=>z.test).forEach(z=>map.removeLayer(z.c));
+ st.zones=st.zones.filter(z=>!z.test);
+ renderZones();render();saveCfg();toast('Random test zones cleared.');
+}
+$('genZones').onclick=generateRandomZones;
+$('addRandomZone').onclick=()=>addRandomPolygon();
+$('clearTestZones').onclick=clearTestZones;
+$('qZ').onclick=()=>{setMode('zone');$('mapbox').scrollIntoView({behavior:'smooth'})};
+$('qH').onclick=()=>$('hist').scrollIntoView({behavior:'smooth'});
+$('qS').onclick=()=>{
+ if($('src').value==='demo'&&st.timer)st.simSos=true;
+ else toast('Hold the SOS button on the tracker for 2 seconds.');
+};
+
+/* Click handling: circular zone, custom polygon, route, or map lookup. */
+map.on('click',e=>{
+ if(st.tool==='zone'){
+  const r=Math.max(1,+$('rad').value||50),restr=$('restr').checked;
+  const name=(restr?'Restricted Zone ':'Safe Zone ')+(st.zones.length+1);
+  const z={name,lat:e.latlng.lat,lon:e.latlng.lng,r,restr,type:'circle',in:null,votes:0,on:true,test:false};
+  z.c=makeZoneLayer(z);st.zones.push(z);
+  renderZones();render();saveCfg();toast(name+' added.');
+ }else if(st.tool==='polygon'){
+  st.drawPoints.push(e.latlng);
+  st.drawMarkers.push(L.circleMarker(e.latlng,{
+   radius:6,color:'#ffffff',weight:2,fillColor:'#38bdf8',fillOpacity:1,
+   className:'draw-point'
+  }).addTo(map).bindTooltip('Point '+st.drawPoints.length));
+  const pts=st.drawPoints.map(p=>[p.lat,p.lng]);
+  if(st.drawLine)map.removeLayer(st.drawLine);
+  st.drawLine=L.polyline(pts,{color:'#38bdf8',weight:4,dashArray:'7 5',opacity:1}).addTo(map);
+  st.drawMarkers.forEach(m=>m.bringToFront());
+  $('finishBoundary').disabled=st.drawPoints.length<3;
+  $('hint').textContent=st.drawPoints.length+' points added. Click Finish boundary when the outline is complete.';
+ }else if(st.tool==='route'){
+  st.route.push({lat:e.latlng.lat,lon:e.latlng.lng});
+  routeLine.setLatLngs(st.route.map(p=>[p.lat,p.lon]));render();saveCfg();
+ }else identify(e.latlng);
+});
+
+/* Render zone controls. */
+function renderZones(){
+ const zl=$('zl');zl.innerHTML='';
+ if(!st.zones.length){zl.innerHTML='<span style="color:var(--mut)">No zones yet. Add a circular zone or draw a custom boundary.</span>';return}
+ st.zones.forEach((z,i)=>{
+  const d=document.createElement('div');d.className='z';
+  const status=!z.on?'Disabled':z.in===null?'Waiting for GPS':breach(z)?'Breach detected':z.restr?'Monitoring':'Normal';
+  const m=document.createElement('div'),b=document.createElement('b'),sm=document.createElement('small');
+  b.textContent=z.name;
+  sm.textContent=(z.type==='polygon'?'Custom polygon':('Radius '+z.r+' m'))+' · '+status;
+  sm.className=breach(z)?'bad':'';
+  m.append(b,sm);
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=z.on;
+  cb.title='Enable or disable '+z.name;
+  cb.onchange=()=>{
+   z.on=cb.checked;z.c.setStyle(zoneStyle(z));renderZones();render();saveCfg();
+  };
+  const del=document.createElement('button');del.textContent='×';del.title='Delete '+z.name;
+  del.setAttribute('aria-label','Delete '+z.name);
+  del.onclick=()=>{
+   map.removeLayer(z.c);st.zones=st.zones.filter(item=>item!==z);
+   renderZones();render();saveCfg();toast(z.name+' deleted.');
+  };
+  d.append(m,cb,del);zl.append(d);
+ });
+}
+
+/* Clear zones and planned route. */
+$('clr').onclick=()=>{
+ if(!confirm('Delete all geofence zones and clear the planned route?'))return;
+ st.zones.forEach(z=>map.removeLayer(z.c));st.zones=[];
+ st.route=[];routeLine.setLatLngs([]);
+ clearBoundaryPreview();setMode(null);
+ renderZones();render();saveCfg();toast('All zones and route cleared.');
+};
+$('lim').oninput=()=>{drawChart();saveCfg()};
+$('dev').oninput=saveCfg;
+
+/* Export GPS history as CSV. */
+$('rep').onclick=e=>{
+ e.preventDefault();if(!st.trail.length)return toast('No GPS data yet.');
+ const csv='time,lat,lon,speed_kmh\n'+st.trail.map(p=>[
+  new Date(p.t).toISOString(),p.lat,p.lon,p.spd
+ ].join(',')).join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+ a.download='track.csv';a.click();URL.revokeObjectURL(a.href);
+};
+
+/* Parse lines from the tracker serial output and optionally forward them to the server. */
+function forwardTelemetry(p){
+ if(!API)return;
+ fetch(API+'/api/telemetry',{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify(p)
+ }).catch(e=>console.warn('Could not forward telemetry to server:',e));
+}
+function parseLine(s){
+ let m=s.match(/fix=(\d) sats=(\d+) hdop=([\d.]+) lat=(-?[\d.]+) lon=(-?[\d.]+) spd=([\d.]+)/);
+ if(m){
+  const b=s.match(/bat=(\d+)/),r=s.match(/rssi=(-?\d+)/),g=s.match(/ g=([\d.]+)/);
+  const p={fix:+m[1],sats:+m[2],hdop:+m[3],lat:+m[4],lon:+m[5],spd:+m[6],
+   bat:b?+b[1]:null,rssi:r?+r[1]:null,g:g?+g[1]:null,link:'USB'};
+  ingest(p);
+  forwardTelemetry(p);
+  return;
+ }
+ m=s.match(/^CELL lat=(-?[\d.]+) lon=(-?[\d.]+) acc=(\d+)/);
+ if(m){
+  const p={fix:0,clat:+m[1],clon:+m[2],cacc:+m[3],link:'USB cell'};
+  showCell(p.clat,p.clon,p.cacc);
+  forwardTelemetry(p);
+  return;
+ }
+ m=s.match(/^ALERT: (.*)/);
+ if(m){
+  if(/GPS LOST/i.test(m[1]))st.gpsLost=true;
+  if(/GPS RESTORED/i.test(m[1]))st.gpsLost=false;
+  const type=/SOS/i.test(m[1])?'sos':/RESTORED|SPEED OK|BACK/i.test(m[1])?'info':'warn';
+  addAlert(type,m[1]);
+  forwardTelemetry({alert:m[1],sos:type==='sos',fix:st.hasFix?1:0});
+  return;
+ }
+ if(/^SMS: SOS/i.test(s)){
+  addAlert('sos','SOS button pressed on the tracker. SMS sent.');
+  forwardTelemetry({sos:true,fix:st.hasFix?1:0});
+ }
+}
+async function startSerial(){
+ if(!('serial' in navigator)){
+  alert('Use Chrome or Edge on HTTPS or localhost for USB serial.');
+  return false;
+ }
+ try{
+  // Optional backend URL: enter your public tunnel URL to share GPS with other devices.
+  const u=$('url').value.trim().replace(/\/$/,'');
+  API=u;
+  st.serialPort=await navigator.serial.requestPort();
+  try{
+   await st.serialPort.open({baudRate:115200});
+  }catch(e){
+   // Port was left open by an earlier session on this page: reuse it if it is free.
+   if(e.name==='InvalidStateError'&&st.serialPort.readable&&!st.serialPort.readable.locked){
+    console.warn('Port already open, reusing it');
+   }else if(e.name==='InvalidStateError'){
+    throw new Error('Port is stuck open from a previous session. Refresh this page (Ctrl+F5) and try again.');
+   }else throw e;
+  }
+  st.dev=true;st.mode='serial';st.stopped=false;
+  $('ctext').textContent='USB connected; waiting for GPS';
+  $('cdot').style.background='var(--amb)';
+  $('go').textContent='Stop';
+  $('src').disabled=true;
+  $('url').disabled=true;
+  const decoder=new TextDecoderStream();
+  st.serialPipe=st.serialPort.readable.pipeTo(decoder.writable).catch(()=>{});
+  st.serialReader=decoder.readable.getReader();
+  st.serialTask=(async()=>{
+   let buf='';
+   try{
+    while(!st.stopped&&st.serialReader){
+     const {value,done}=await st.serialReader.read();
+     if(done)break;
+     buf+=value;
+     let i;
+     while((i=buf.indexOf('\n'))>=0){
+      parseLine(buf.slice(0,i).trim());
+      buf=buf.slice(i+1);
+     }
+     if(buf.length>4096)buf='';
+    }
+   }catch(e){
+    if(!st.stopped)console.warn('Serial reader stopped:',e);
+   }
+  })();
+  toast(API?'LILYGO connected; forwarding GPS to server.':'LILYGO connected; GPS is shown in this browser only.');
+  return true;
+ }catch(e){
+  st.dev=false;
+  if(st.serialReader){try{await st.serialReader.cancel()}catch(_){} st.serialReader=null;}
+  if(st.serialPipe){try{await st.serialPipe}catch(_){} st.serialPipe=null;}
+  if(st.serialPort){try{await st.serialPort.close()}catch(_){} st.serialPort=null;}
+  alert('Could not open the port. Close Arduino Serial Monitor and try again.\n'+e.message);
+  return false;
+ }
+}
+async function stopTracking(){
+ st.stopped=true;
+ if(st.timer){clearInterval(st.timer);st.timer=null;}
+ const rd=st.serialReader;
+ st.serialReader=null;
+ if(rd){
+  try{await rd.cancel()}catch(e){}
+ }
+ if(st.serialTask){
+  try{await st.serialTask}catch(e){}
+  st.serialTask=null;
+ }
+ if(st.serialPipe){
+  try{await st.serialPipe}catch(e){}
+  st.serialPipe=null;
+ }
+ if(st.serialPort){
+  const p=st.serialPort;st.serialPort=null;
+  try{await p.close()}catch(e){console.warn('Port close failed:',e)}
+ }
+ st.dev=false;st.mode=null;
+ $('go').textContent='Start';
+ $('src').disabled=false;$('url').disabled=false;
+ $('ctext').textContent='Stopped';$('cdot').style.background='var(--red)';
+ toast('Tracking stopped. Demo will not restart automatically.');
+}
+async function loadHistory(u){
+ try{
+  const h=await(await fetch(u+'/api/history')).json();
+  h.forEach(j=>{
+   if(j.fix&&j.lat){
+    const pt={lat:j.lat,lon:j.lon,spd:j.spd||0,t:j.t};
+    st.trail.push(pt);st.speeds.push(pt.spd);st.log.push({...pt,sos:!!j.sos,place:''});
+    trailLine.addLatLng([pt.lat,pt.lon]);
+   }
+  });
+  st.speeds=st.speeds.slice(-80);st.log=st.log.slice(-200);
+  const l=st.trail[st.trail.length-1];if(l)map.setView([l.lat,l.lon],16);render();
+ }catch(e){}
+}
+function startServer(){
+ const u=$('url').value.trim().replace(/\/$/,'');
+ if(!u){alert('Enter the backend server URL first.');return false}
+ API=u;st.mode='server';st.stopped=false;
+ loadHistory(u);loadCfg();loadAlerts();
+ st.timer=setInterval(async()=>{
+  if(st.stopped||st.mode!=='server')return;
+  try{
+   const j=await(await fetch(u+'/api/live',{cache:'no-store'})).json();
+   if(!j.t||j.t===st.srvT)return;st.srvT=j.t;
+   if(j.clat!=null&&!j.fix)showCell(j.clat,j.clon,j.cacc);
+   if(j.alert)addAlert(/SOS/i.test(j.alert)?'sos':'warn',j.alert);
+   if(j.fix===1||j.lat!=null){
+    ingest({fix:j.fix??1,lat:j.lat,lon:j.lon,spd:j.spd,sats:j.sats,
+     sos:j.sos,bat:j.bat,rssi:j.rssi,g:j.g,imp:j.imp,link:j.link||'Server'});
+   }
+  }catch(e){$('ctext').textContent='Server not reachable'}
+ },2000);
+ return true;
+}
+function startDemo(){
+ st.mode='demo';st.stopped=false;
+ st.timer=setInterval(()=>{
+  if(st.stopped||st.mode!=='demo')return;
+  const t=++st.ticks;
+  ingest({fix:st.cover?0:1,sats:st.cover?0:9,
+   lat:29.8649+0.0007*Math.sin(t/18),lon:77.8966+0.0011*Math.cos(t/18),
+   spd:28+22*Math.sin(t/12),sos:st.simSos,bat:Math.max(5,100-t/30),rssi:22,link:'4G (demo)'});
+  st.simSos=false;
+ },1000);
+ addAlert('info','Demo started. You can test custom boundaries and random zones on the map.');
+ if(!$('coverDemo')){
+  const b=document.createElement('button');b.id='coverDemo';b.textContent='Cover GPS antenna (demo)';
+  b.onclick=()=>{st.cover=!st.cover;b.textContent=st.cover?'Uncover GPS antenna':'Cover GPS antenna (demo)'};
+  $('hint').after(b);
+ }
+ return true;
+}
+$('src').onchange=()=>{
+ const mode=$('src').value;
+ $('url').style.display=(mode==='server'||mode==='serial')?'':'none';
+ $('url').placeholder=mode==='serial'?'Public backend URL to share GPS (optional)':'Backend URL, e.g. https://your-tunnel.trycloudflare.com';
+};
+$('go').onclick=async()=>{
+ if(st.timer||st.dev){await stopTracking();return}
+ const s=$('src').value;
+ st.stopped=false;
+ if(s==='demo'){
+  if(startDemo()){$('go').textContent='Stop';$('src').disabled=true}
+ }else if(s==='serial'){
+  const ok=await startSerial();
+  if(ok)$('go').textContent='Stop';
+ }else{
+  if(startServer()){$('go').textContent='Stop';$('src').disabled=true;$('url').disabled=true}
+ }
+};
+
+setInterval(()=>{
+ const now=Date.now();
+ if(!st.dev&&st.lastGood&&!st.gpsLost&&now-st.lastGood>(st.cover?5000:30000)){
+  st.gpsLost=true;addAlert('warn','GPS lost: showing last known position');
+ }
+ render();
+},1000);
+
+renderAlerts();render();renderZones();
+(function boot(){
+ $('url').style.display=($('src').value==='server'||$('src').value==='serial')?'':'none';
+ // Intentionally do not click Start automatically.
+ // The user must explicitly choose a mode and press Start.
+})();
+</script>
+</body>
+</html>
